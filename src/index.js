@@ -1,3 +1,6 @@
+const https = require('https');
+const fs = require('fs');
+
 // Charger les variables d'environnement à partir du fichier .env
 require('dotenv').config();
 
@@ -10,6 +13,13 @@ const authenticateAdmin = require('./middlewares/authMiddleware');
 const cron = require('node-cron');
 const updateAges = require('./utils/updateAges');
 
+
+// Configuration HTTPS avec Let's Encrypt
+const httpsOptions = {
+  cert: fs.readFileSync(process.env.SSL_CERT_PATH),
+  key: fs.readFileSync(process.env.SSL_KEY_PATH)
+};
+
 // Initialiser une instance d'Express
 const app = express();
 
@@ -20,6 +30,14 @@ app.use('/stripe', require('./routes/paymentRoutes'));
 app.use(cors()); // Activer CORS pour permettre les requêtes cross-origin
 app.use(express.json()); // Middleware pour parser les requêtes JSON
 app.use(express.urlencoded({ extended: true })); // Middleware pour parser les requêtes URL-encoded
+
+// Rediriger tout le trafic HTTP vers HTTPS
+app.use((req, res, next) => {
+  if (!req.secure) {
+    return res.redirect(['https://', req.get('Host'), req.url].join(''));
+  }
+  next();
+});
 
 // Route publique (ne nécessite pas d'authentification)
 app.use('/auth', require('./routes/authRoutes'));
@@ -57,9 +75,12 @@ cron.schedule('0 0 * * *', () => {
   updateAges();
 });
 
+// Créer le serveur HTTPS
+const httpsServer = https.createServer(httpsOptions, app);
+
 // Démarrer le serveur
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+httpsServer.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV}`);
 });
