@@ -4,7 +4,6 @@ const Registration = require("../models/Registration");
 exports.createRegistration = async (req, res, next) => {
   try {
     // Extraire les champs nécessaires du corps de la requête
-
     const {
       typeInscription,
       firstName,
@@ -32,6 +31,21 @@ exports.createRegistration = async (req, res, next) => {
       !contact.email
     ) {
       const error = new Error("Missing required fields");
+      error.status = 400;
+      throw error;
+    }
+
+    // Vérifier si un utilisateur avec le même nom, prénom, email ou téléphone existe déjà
+    const existingRegistration = await Registration.findOne({
+      $or: [
+        { "contact.email": contact.email },
+        { "contact.phone": contact.phone },
+        { firstName, lastName }  // Recherche par prénom et nom
+      ]
+    });
+
+    if (existingRegistration) {
+      const error = new Error("An account with this email, phone, or name already exists");
       error.status = 400;
       throw error;
     }

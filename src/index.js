@@ -15,10 +15,10 @@ const updateAges = require('./utils/updateAges');
 
 
 // Configuration HTTPS avec Let's Encrypt
-const httpsOptions = {
-  cert: fs.readFileSync(process.env.SSL_CERT_PATH),
-  key: fs.readFileSync(process.env.SSL_KEY_PATH)
-};
+// const httpsOptions = {
+//   cert: fs.readFileSync(process.env.SSL_CERT_PATH),
+//   key: fs.readFileSync(process.env.SSL_KEY_PATH)
+// };
 
 // Initialiser une instance d'Express
 const app = express();
@@ -76,7 +76,8 @@ cron.schedule('0 0 * * *', () => {
 });
 
 // Créer le serveur HTTPS
-const httpsServer = https.createServer(httpsOptions, app);
+// const httpsServer = https.createServer(httpsOptions, app);
+const httpsServer = https.createServer( app);
 
 // Démarrer le serveur
 const PORT = process.env.PORT || 3000;
