@@ -1,9 +1,23 @@
 const Registration = require("../models/Registration");
 
+// Fonction pour vérifier le type MIME d'un fichier base64
+function validateFileType(base64String) {
+  const validMimeTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+  const mimeType = getMimeType(base64String);
+  return validMimeTypes.includes(mimeType);
+}
+
+// Fonction pour extraire le type MIME d'une chaîne base64
+function getMimeType(base64String) {
+  const matches = base64String.match(/^data:([a-zA-Z0-9/+]+);base64,/);
+  const mimeType = matches ? matches[1] : '';
+  console.log("Extracted MIME type:", mimeType); // Ajoutez ce log pour le débogage
+  return mimeType;
+}
+
 // Créer une nouvelle inscription
 exports.createRegistration = async (req, res, next) => {
   try {
-    // Extraire les champs nécessaires du corps de la requête
     const {
       typeInscription,
       firstName,
@@ -15,11 +29,9 @@ exports.createRegistration = async (req, res, next) => {
       address,
       documents,
       droitImage,
-      codePromo, 
       status,
     } = req.body;
 
-    // Valider la présence de tous les champs requis
     if (
       !typeInscription ||
       !firstName ||
@@ -35,22 +47,39 @@ exports.createRegistration = async (req, res, next) => {
       throw error;
     }
 
-    // Vérifier si un utilisateur avec le même nom, prénom, email ou téléphone existe déjà
+    // Vérifier si une inscription existe déjà avec le même email, prénom et nom
     const existingRegistration = await Registration.findOne({
-      $or: [
-        { "contact.email": contact.email },
-        { "contact.phone": contact.phone },
-        { firstName, lastName }  // Recherche par prénom et nom
-      ]
+      "contact.email": contact.email,
+      firstName: firstName,
+      lastName: lastName
     });
 
+   
     if (existingRegistration) {
-      const error = new Error("An account with this email, phone, or name already exists");
-      error.status = 400;
-      throw error;
+      return res.status(400).json({
+          message: "Doublon d'inscription : email et nom déjà utilisés"
+      });
+  }
+
+    // Vérifier les types MIME des documents
+    if (documents) {
+      if (documents.carteIdentite && !validateFileType(documents.carteIdentite)) {
+        const error = new Error("Invalid file type for carteIdentite");
+        error.status = 400;
+        throw error;
+      }
+      if (documents.justificatifDomicile && !validateFileType(documents.justificatifDomicile)) {
+        const error = new Error("Invalid file type for justificatifDomicile");
+        error.status = 400;
+        throw error;
+      }
+      if (documents.certificatMedical && !validateFileType(documents.certificatMedical)) {
+        const error = new Error("Invalid file type for certificatMedical");
+        error.status = 400;
+        throw error;
+      }
     }
 
-    // Créer une nouvelle inscription avec les champs extraits
     const registration = new Registration({
       typeInscription,
       firstName,
@@ -62,14 +91,10 @@ exports.createRegistration = async (req, res, next) => {
       address,
       documents,
       droitImage,
-      codePromo,
       status,
     });
 
-    // Sauvegarder l'inscription dans la base de données
     await registration.save();
-
-    // Répondre avec l'inscription créée
     res.status(201).json(registration);
   } catch (error) {
     next(error);

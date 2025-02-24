@@ -1,11 +1,18 @@
 const Employee = require('../models/Employee');
-const { sendSalaryPaymentConfirmation } = require('../utils/emailService');
-const mongoose = require('mongoose');
+const emailService = require('../utils/emailService');
 
+$
 // Ajouter un paiement de salaire
 exports.addSalaryPayment = async (req, res, next) => {
   try {
     const { employeeId, hoursWorked } = req.body; // Extraire l'ID de l'employé et le nombre d'heures travaillées du corps de la requête
+
+    // Vérifier que l'employeeId est présent dans la requête
+    if (!employeeId) {
+      const error = new Error('Employee ID is required');
+      error.status = 400;
+      throw error;
+    }
 
     const employee = await Employee.findById(employeeId); // Récupérer l'employé par son ID
 
@@ -53,17 +60,21 @@ exports.addSalaryPayment = async (req, res, next) => {
 
     // Ajouter le montant calculé au paiement
     payment.amount = amount;
+    if (!Array.isArray(employee.salaryHistory)) {
+      employee.salaryHistory = []; // S'assurer que l'historique est un tableau
+    }
     employee.salaryHistory.push(payment); // Ajouter le paiement à l'historique des paiements de l'employé
     await employee.save(); // Sauvegarder les modifications dans la base de données
 
     // Envoyer l'email de confirmation de paiement de salaire
-    await sendSalaryPaymentConfirmation(employee, payment);
+    await emailService.sendSalaryPaymentConfirmation(employee, payment);
 
     res.status(200).json(employee); // Répondre avec l'employé mis à jour
   } catch (error) {
     next(error); // Passer l'erreur au middleware de gestion des erreurs
   }
 };
+
 
 // Récupérer l'historique des paiements
 exports.getSalaryHistory = async (req, res, next) => {
@@ -122,10 +133,12 @@ exports.getEmployeeById = async (req, res, next) => {
 // Créer un nouvel employé
 exports.createEmployee = async (req, res, next) => {
   try {
-    const { licenseNumber, firstName, lastName, email, phone, birthDate, gender, positions, contractStatus, salaryType, hourlyRate } = req.body;
+    const { licenseNumber, firstName, lastName, email, phone, birthDate, gender, positions, contractStatus, salaryType, hourlyRate, monthlySalary } = req.body;
 
     // Valider la présence des champs requis
-    if (!licenseNumber || !firstName || !lastName || !email || !phone || !birthDate || !gender || !positions || !contractStatus || !salaryType || (salaryType === 'Horaire' && !hourlyRate)) {
+    if (!licenseNumber || !firstName || !lastName || !email || !phone || !birthDate || !gender || !positions || !contractStatus || !salaryType || (salaryType === 'Horaire' && !hourlyRate) || 
+    (salaryType === 'Mensuel' && !monthlySalary)
+  )  {
       const error = new Error('Missing required fields');
       error.status = 400;
       throw error;
@@ -144,6 +157,7 @@ exports.createEmployee = async (req, res, next) => {
       contractStatus,
       salaryType,
       hourlyRate, // Sera utilisé uniquement si salaryType est 'Horaire'
+      monthlySalary
     });
 
     // Sauvegarder l'employé dans la base de données
@@ -191,6 +205,7 @@ exports.updateEmployee = async (req, res, next) => {
     next(error); // Passer l'erreur au middleware de gestion des erreurs
   }
 };
+
 
 // Supprimer un employé
 exports.deleteEmployee = async (req, res, next) => {

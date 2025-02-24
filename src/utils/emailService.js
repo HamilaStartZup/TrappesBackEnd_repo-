@@ -1,81 +1,129 @@
 const nodemailer = require('nodemailer');
 
-// Configurer le transporteur pour envoyer des emails
-const transporter = nodemailer.createTransport({
-  service: process.env.EMAIL_SERVICE, // Service d'email (par exemple, Gmail)
-  auth: {
-    user: process.env.EMAIL_USER, // Adresse email de l'expéditeur
-    pass: process.env.EMAIL_PASS // Mot de passe de l'expéditeur
-  },
-  tls: {
-    rejectUnauthorized: false // Désactiver la vérification TLS pour les certificats auto-signés
-  }
-});
-
-// Fonction pour envoyer un rappel de paiement
-exports.sendPaymentReminder = async (member) => {
-  try {
-    // Envoyer l'email de rappel de paiement
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER, // Adresse email de l'expéditeur
-      to: member.email, // Adresse email du destinataire (membre)
-      subject: 'Rappel de Paiement - Football Club', // Sujet de l'email
-      text: `Cher ${member.firstName},\n\nCeci est un rappel que votre paiement de ${member.totalDue - member.totalPaid}€ est en attente.\n\nCordialement,\nFootball Club` // Contenu de l'email
+class EmailService {
+  constructor() {
+    this.transporter = nodemailer.createTransport({
+      service: process.env.EMAIL_SERVICE,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
     });
-    return true; // Retourner true si l'email est envoyé avec succès
-  } catch (error) {
-    console.error('Échec de l\'envoi de l\'email:', error); // Loguer l'erreur en cas d'échec
-    return false; // Retourner false si l'email n'a pas pu être envoyé
   }
-};
 
-// Fonction pour envoyer une confirmation de paiement
-exports.sendPaymentConfirmation = async (member, payment) => {
-  try {
-    const remainingAmount = member.totalDue - member.totalPaid; // Calculer le montant restant à payer
-    let emailText = `Cher ${member.firstName},\n\nNous confirmons la réception de votre paiement de ${payment.amount}€ effectué par ${payment.paymentMethod}.\n\n`; // Texte de base de l'email
+  // Templates d'emails
+  templates = {
+    paymentReminder: (member) => ({
+      subject: 'Rappel de Paiement - ES Trappes Football Club',
+      text: `Cher ${member.firstName} ${member.lastName},
 
-    // Ajouter un message si un solde reste à payer
-    if (remainingAmount > 0) {
-      emailText += `Vous avez encore un solde de ${remainingAmount}€ à payer.\n\n`;
-    } else {
-      emailText += `Votre paiement est complet. Merci pour votre règlement.\n\n`;
+Nous espérons que vous vous portez bien. Ce message est un rappel concernant votre cotisation au club.
+
+Détails de votre cotisation :
+- Montant total dû : ${member.totalDue}€
+- Montant déjà payé : ${member.totalPaid}€
+- Reste à payer : ${member.totalDue - member.totalPaid}€
+
+Pour effectuer votre paiement, vous pouvez :
+1. Payer en ligne sur notre site web
+2. Payer directement au club (espèces, carte bancaire, ou chèque)
+3. Effectuer un virement bancaire
+
+Si vous avez déjà effectué le paiement, merci de ne pas tenir compte de ce message.
+
+Cordialement,
+ES Trappes Football Club`
+    }),
+
+    paymentConfirmation: (member, payment) => ({
+      subject: 'Confirmation de Paiement - ES Trappes Football Club',
+      text: `Cher ${member.firstName} ${member.lastName},
+
+Nous confirmons la réception de votre paiement de ${payment.amount}€.
+
+${member.totalPaid >= member.totalDue 
+  ? 'Votre cotisation est maintenant entièrement réglée. Merci !'
+  : `Il vous reste ${member.totalDue - member.totalPaid}€ à régler.`}
+
+Cordialement,
+ES Trappes Football Club`
+    }),
+
+    salaryPaymentConfirmation: (employee, payment) => {
+      const date = new Date(payment.date);
+      const formattedDate = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+      return {
+        subject: 'Confirmation de Paiement de Salaire',
+        text: `Cher ${employee.firstName},
+
+Nous vous informons que votre salaire de ${payment.amount}€ a été versé le ${formattedDate}.
+
+Cordialement`
+      };
     }
+  };
 
-    emailText += `Cordialement,\nFootball Club`; // Ajouter la signature
-
-    // Envoyer l'email de confirmation de paiement
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER, // Adresse email de l'expéditeur
-      to: member.email, // Adresse email du destinataire (membre)
-      subject: 'Confirmation de Paiement - Football Club', // Sujet de l'email
-      text: emailText // Contenu de l'email
-    });
-    return true; // Retourner true si l'email est envoyé avec succès
-  } catch (error) {
-    console.error('Échec de l\'envoi de l\'email:', error); // Loguer l'erreur en cas d'échec
-    return false; // Retourner false si l'email n'a pas pu être envoyé
+  // Méthode pour envoyer un email
+  async sendEmail(to, template) {
+    try {
+      await this.transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to,
+        subject: template.subject,
+        text: template.text
+      });
+      return { success: true, email: to };
+    } catch (error) {
+      console.error(`Échec d'envoi d'email à ${to}:`, error);
+      return { success: false, email: to, error: error.message };
+    }
   }
-};
 
-
-// Fonction pour envoyer une confirmation de paiement de salaire
-exports.sendSalaryPaymentConfirmation = async (employee, payment) => {
-  try {
-    const date = new Date(payment.date);
-    const formattedDate = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
-    const emailText = `Cher ${employee.firstName},\n\nNous vous informons que votre salaire de ${payment.amount}€ a été versé le ${formattedDate}.\n\nCordialement`;
-
-    // Envoyer l'email de confirmation de paiement de salaire
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER, // Adresse email de l'expéditeur
-      to: employee.email, // Adresse email du destinataire (employé)
-      subject: 'Confirmation de Paiement de Salaire', // Sujet de l'email
-      text: emailText // Contenu de l'email
-    });
-    return true; // Retourner true si l'email est envoyé avec succès
-  } catch (error) {
-    console.error('Échec de l\'envoi de l\'email:', error); // Loguer l'erreur en cas d'échec
-    return false; // Retourner false si l'email n'a pas pu être envoyé
+  // Méthode pour envoyer un rappel de paiement
+  async sendPaymentReminder(member) {
+    return this.sendEmail(member.email, this.templates.paymentReminder(member));
   }
-};
+
+  // Méthode pour envoyer une confirmation de paiement
+  async sendPaymentConfirmation(member, payment) {
+    return this.sendEmail(member.email, this.templates.paymentConfirmation(member, payment));
+  }
+
+  // Méthode pour envoyer une confirmation de paiement de salaire
+  async sendSalaryPaymentConfirmation(employee, payment) {
+    return this.sendEmail(employee.email, this.templates.salaryPaymentConfirmation(employee, payment));
+  }
+
+  // Méthode pour envoyer des rappels en masse
+  async sendBulkPaymentReminders(members) {
+    const results = {
+      success: [],
+      failed: [],
+      total: members.length
+    };
+
+    const promises = members.map(member => this.sendPaymentReminder(member));
+    const emailResults = await Promise.allSettled(promises);
+
+    // Traitement des résultats
+    emailResults.forEach((result, index) => {
+      if (result.status === 'fulfilled' && result.value.success) {
+        results.success.push(members[index].email);
+      } else {
+        results.failed.push({
+          email: members[index].email,
+          error: result.value?.error || 'Échec de l\'envoi'
+        });
+      }
+    });
+
+    return results;
+  }
+}
+
+// Export du service
+const emailService = new EmailService();
+module.exports = emailService;

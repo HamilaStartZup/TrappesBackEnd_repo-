@@ -1,5 +1,6 @@
 const Member = require('../models/Member');
 const { sendPaymentConfirmation, sendPaymentReminder } = require('../utils/emailService'); // Assurez-vous que le chemin est correct
+const emailService = require('../utils/emailService');
 
 // Créer un nouveau membre
 exports.createMember = async (req, res, next) => {
@@ -50,7 +51,8 @@ exports.getAllMembers = async (req, res, next) => {
     if (age) filter.age = age;
     if (active !== undefined) filter.active = active === 'true';
 
-    const members = await Member.find(filter).select('firstName lastName licenseNumber'); // Utilisation des filtres dans la requête
+    // const members = await Member.find(filter).select('firstName lastName licenseNumber'); // Utilisation des filtres dans la requête
+    const members = await Member.find(filter);
     res.json(members);
   } catch (error) {
     next(error);
@@ -182,35 +184,14 @@ exports.addPayment = async (req, res, next) => {
     await member.save(); // Sauvegarder les modifications dans la base de données
 
     // Envoyer l'email de confirmation de paiement
-    await sendPaymentConfirmation(member, { amount, paymentMethod });
+    // await sendPaymentConfirmation(member, { amount, paymentMethod });
+    await emailService.sendPaymentConfirmation(member, { amount, paymentMethod });
 
     res.json(member); // Répondre avec le membre mis à jour
   } catch (error) {
     next(error); // Passer l'erreur au middleware de gestion des erreurs
   }
 };
-
-
-// Envoyer des rappels de paiement
-exports.sendPaymentReminders = async (req, res, next) => {
-  try {
-    const members = await Member.find({ paymentStatus: { $ne: 'paid' } }); // Récupérer les membres dont le statut de paiement n'est pas 'paid'
-    const emailLogs = [];
-
-    for (const member of members) {
-      const success = await sendPaymentReminder(member); // Envoyer un rappel de paiement au membre
-      if (success) {
-        emailLogs.push(member.email); // Ajouter l'email du membre à la liste des emails envoyés
-      }
-    }
-
-    console.log('Payment reminders sent to:', emailLogs); // Loguer les emails auxquels les rappels ont été envoyés
-    res.json({ message: 'Payment reminders sent successfully', emails: emailLogs }); // Répondre avec un message de succès et la liste des emails
-  } catch (error) {
-    next(error); // Passer l'erreur au middleware de gestion des erreurs
-  }
-};
-
 
 
 // Mettre à jour plusieurs membres
@@ -273,5 +254,37 @@ exports.updateMultipleMembers = async (req, res, next) => {
     res.json({ message: 'Members updated successfully', modifiedCount: members.length });
   } catch (error) {
     next(error); // Passer l'erreur au middleware de gestion des erreurs
+  }
+};
+
+
+// Envoyer des rappels de paiement
+exports.sendPaymentReminders = async (req, res) => {
+  try {
+    // Récupérer tous les membres avec paiement incomplet
+    const members = await Member.find({
+      $expr: { $lt: ['$totalPaid', '$totalDue'] }
+    });
+
+    if (members.length === 0) {
+      return res.json({
+        message: 'Aucun rappel nécessaire - tous les paiements sont à jour',
+        results: { success: [], failed: [], total: 0 }
+      });
+    }
+
+    // Envoyer les rappels
+    const results = await emailService.sendBulkPaymentReminders(members);
+
+    return res.json({
+      message: 'Rappels de paiement envoyés',
+      results
+    });
+  } catch (error) {
+    console.error('Erreur lors de l\'envoi des rappels:', error);
+    return res.status(500).json({
+      error: 'Erreur lors de l\'envoi des rappels',
+      details: error.message
+    });
   }
 };

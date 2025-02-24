@@ -11,7 +11,7 @@ router.put('/:employeeId', validateObjectId, EmployeeController.updateEmployee);
 router.delete('/:employeeId', validateObjectId, EmployeeController.deleteEmployee); // Supprimer un employé
 
 // Routes pour gérer les salaires
-router.post('/salary', validateObjectId, EmployeeController.addSalaryPayment);    // Ajouter un paiement de salaire
+router.post('/salary', EmployeeController.addSalaryPayment);    // Ajouter un paiement de salaire
 router.get('/:employeeId/salary', validateObjectId, EmployeeController.getSalaryHistory); // Historique des paiements
 
 module.exports = router;
