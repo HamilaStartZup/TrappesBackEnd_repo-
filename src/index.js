@@ -1,6 +1,7 @@
 // Charger les variables d'environnement à partir du fichier .env
 require('dotenv').config();
-
+const fs = require("fs");
+const https = require("https");
 // Importer les modules nécessaires
 const express = require('express');
 const cors = require('cors');
@@ -10,6 +11,7 @@ const authenticateAdmin = require('./middlewares/authMiddleware');
 const cron = require('node-cron');
 const updateAges = require('./utils/updateAges');
 
+
 // Initialiser une instance d'Express
 const app = express();
 
@@ -18,8 +20,9 @@ app.use('/stripe', require('./routes/paymentRoutes'));
 
 // Utiliser les middlewares
 app.use(cors()); // Activer CORS pour permettre les requêtes cross-origin
-app.use(express.json({ limit: '10mb' }));  // Middleware pour parser les requêtes JSON
-app.use(express.urlencoded({ limit: '10mb', extended: true }));  // Middleware pour parser les requêtes URL-encoded
+app.use(express.json()); // Middleware pour parser les requêtes JSON
+app.use(express.urlencoded({ extended: true })); // Middleware pour parser les requêtes URL-encoded
+
 
 // Route publique (ne nécessite pas d'authentification)
 app.use('/auth', require('./routes/authRoutes'));
@@ -57,9 +60,14 @@ cron.schedule('0 0 * * *', () => {
   updateAges();
 });
 
+// Charger les certificats SSL
+const options = {
+  key: fs.readFileSync("/etc/letsencrypt/live/backendestrappes.fr/privkey.pem"),
+  cert: fs.readFileSync("/etc/letsencrypt/live/backendestrappes.fr/fullchain.pem"),
+};
 // Démarrer le serveur
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+  app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV}`);
 });
