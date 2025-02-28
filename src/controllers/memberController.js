@@ -1,5 +1,4 @@
 const Member = require('../models/Member');
-const { sendPaymentConfirmation, sendPaymentReminder } = require('../utils/emailService'); // Assurez-vous que le chemin est correct
 const emailService = require('../utils/emailService');
 
 // Créer un nouveau membre
