@@ -1,7 +1,6 @@
 const Employee = require('../models/Employee');
 const emailService = require('../utils/emailService');
 
-$
 // Ajouter un paiement de salaire
 exports.addSalaryPayment = async (req, res, next) => {
   try {
@@ -106,7 +105,7 @@ exports.getAllEmployees = async (req, res, next) => {
     if (contractStatus) filter.contractStatus = contractStatus;
     if (positions) filter.positions = { $in: positions.split(',') }; // Filtrer par positions
 
-    const employees = await Employee.find(filter).select('firstName lastName licenseNumber positions'); // Récupérer les employés filtrés
+    const employees = await Employee.find(filter).select('firstName lastName licenseNumber positions contractStatus'); // Récupérer les employés filtrés
     res.status(200).json(employees); // Répondre avec la liste des employés filtrés
   } catch (error) {
     next(error); // Passer l'erreur au middleware de gestion des erreurs
