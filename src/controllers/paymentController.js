@@ -1,6 +1,8 @@
 require('dotenv').config(); // Charger les variables d'environnement
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const Member = require('../models/Member');
+const Registration = require('../models/Registration');
+const emailService = require('../utils/emailService');
 
 // ✅ Vérifier le montant dû pour un membre
 exports.checkAmountDue = async (req, res) => {
@@ -74,51 +76,77 @@ exports.requestPaymentLink = async (req, res) => {
 // ✅ Gérer les webhooks Stripe
 exports.handleStripeWebhook = async (req, res) => {
   const sig = req.headers['stripe-signature'];
-  const payload = req.body;
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(payload, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    event = stripe.webhooks.constructEvent(
+      req.body, // Raw buffer
+      sig,
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
-      const memberId = session.metadata.memberId;
       const amount = session.amount_total / 100;
 
-      try {
-        const member = await Member.findById(memberId);
-        if (!member) {
-          console.warn(`Membre introuvable: ${memberId}`);
-          return res.status(404).json({ message: "Membre non trouvé" });
+      if (session.metadata && session.metadata.memberId) {
+        const memberId = session.metadata.memberId;
+        try {
+          const member = await Member.findById(memberId);
+          if (!member) {
+            console.warn(`Membre introuvable: ${memberId}`);
+            return res.status(200).json({ received: true, warning: "Membre non trouvé" });
+          }
+
+          member.paymentHistory.push({
+            amount,
+            paymentMethod: 'carte bancaire',
+            date: new Date(),
+            status: 'completed',
+          });
+
+          member.totalPaid += amount;
+          if (member.totalPaid >= member.totalDue) {
+            member.totalDue = 0;
+            member.paymentStatus = 'paid';
+          } else {
+            member.paymentStatus = 'partial';
+          }
+
+          await member.save();
+          console.log(`✅ Paiement membre enregistré: ID ${memberId}, Montant: ${amount}€`);
+
+          // Envoi de l'email de confirmation de paiement
+          await emailService.sendPaymentConfirmation(member, { amount });
+        } catch (error) {
+          console.error('❌ Erreur mise à jour membre:', error);
+          return res.status(200).json({ received: true, processingError: error.message });
         }
+      } else if (session.client_reference_id) {
+        const registrationId = session.client_reference_id;
+        try {
+          const registration = await Registration.findById(registrationId);
+          if (!registration) {
+            console.warn(`Inscription introuvable: ${registrationId}`);
+            return res.status(200).json({ received: true, warning: "Inscription non trouvée" });
+          }
 
-        // Ajout du paiement à l'historique
-        member.paymentHistory.push({
-          amount,
-          paymentMethod: 'carte bancaire',
-          date: new Date(),
-          status: 'completed',
-        });
+          registration.paymentStatus = 'paid';
+          await registration.save();
+          console.log(`✅ Paiement d'inscription enregistré: ID ${registrationId}, Montant: ${amount}€`);
 
-        // Mise à jour des paiements et statut
-        member.totalPaid += amount;
-        if (member.totalPaid >= member.totalDue) {
-          member.totalPaid = Math.max(member.totalPaid - member.totalDue, 0);
-          member.totalDue = 0;
-          member.paymentStatus = 'paid';
-        } else {
-          member.paymentStatus = 'partial';
+          // Envoi de l'email de confirmation de paiement
+          await emailService.sendRegistrationPaymentConfirmation(registration, amount);
+        } catch (error) {
+          console.error('❌ Erreur mise à jour inscription:', error);
+          return res.status(200).json({ received: true, processingError: error.message });
         }
-
-        await member.save();
-        console.log(`✅ Paiement enregistré: Membre ${memberId}, Montant: ${amount}€`);
-      } catch (error) {
-        console.error('❌ Erreur mise à jour membre:', error);
-        return res.status(500).json({ message: "Erreur mise à jour paiement", error: error.message });
+      } else {
+        console.warn("Session de paiement sans identifiant de membre ou d'inscription`");
       }
     }
 
-    res.json({ received: true });
+    res.status(200).json({ received: true });
   } catch (err) {
     console.error('❌ Erreur Webhook:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);

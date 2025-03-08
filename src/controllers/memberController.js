@@ -183,7 +183,6 @@ exports.addPayment = async (req, res, next) => {
     await member.save(); // Sauvegarder les modifications dans la base de données
 
     // Envoyer l'email de confirmation de paiement
-    // await sendPaymentConfirmation(member, { amount, paymentMethod });
     await emailService.sendPaymentConfirmation(member, { amount, paymentMethod });
 
     res.json(member); // Répondre avec le membre mis à jour

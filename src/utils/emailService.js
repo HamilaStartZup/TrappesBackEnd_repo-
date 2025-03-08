@@ -52,6 +52,22 @@ Cordialement,
 ES Trappes Football Club`
     }),
 
+
+    registrationPaymentConfirmation: (registration, amount) => ({
+      subject: 'Confirmation de Paiement - Inscription ES Trappes Football Club',
+      text: `Cher(e) ${registration.firstName} ${registration.lastName},
+
+Nous confirmons la réception de votre paiement de ${amount}€ pour votre inscription à l'ES Trappes Football Club.
+
+Votre inscription est maintenant complète et validée.
+
+Nous avons hâte de vous voir sur le terrain !
+
+Cordialement,
+L'équipe de l'ES Trappes Football Club`
+    }),
+
+
     salaryPaymentConfirmation: (employee, payment) => {
       const date = new Date(payment.date);
       const formattedDate = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
@@ -139,6 +155,11 @@ Cordialement`
       this.templates.stripePaymentLink(registration, paymentUrl, amount)
     );
   }
+
+  async sendRegistrationPaymentConfirmation(registration, amount) {
+    return this.sendEmail(registration.contact.email, this.templates.registrationPaymentConfirmation(registration, amount));
+  }
+
 
   // Méthode pour envoyer des rappels en masse
   async sendBulkPaymentReminders(members) {
