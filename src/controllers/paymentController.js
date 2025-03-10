@@ -61,8 +61,8 @@ exports.requestPaymentLink = async (req, res) => {
         quantity: 1,
       }],
       mode: 'payment',
-      success_url: process.env.SUCCESS_URL || 'https://yourdomain.com/success',
-      cancel_url: process.env.CANCEL_URL || 'https://yourdomain.com/cancel',
+      success_url: process.env.SUCCESS_URL || 'https://es-trappes.com/Succes.html',
+      cancel_url: process.env.CANCEL_URL || 'https://es-trappes.com/Echec.html',
       metadata: { memberId: member._id.toString() },
     });
 
@@ -131,7 +131,7 @@ exports.handleStripeWebhook = async (req, res) => {
             return res.status(200).json({ received: true, warning: "Inscription non trouvée" });
           }
 
-          registration.paymentStatus = 'paid';
+          registration.paymentStatus = 'payé';
           await registration.save();
           console.log(`✅ Paiement d'inscription enregistré: ID ${registrationId}, Montant: ${amount}€`);
 

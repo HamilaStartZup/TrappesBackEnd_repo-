@@ -55,14 +55,14 @@ router.post('/registration/:id/payment-link', async (req, res) => {
         quantity: 1,
       }],
       mode: 'payment',
-      success_url: 'http://localhost:5000/payment-success?session_id={CHECKOUT_SESSION_ID}', // Remplacez par votre URL
-  cancel_url: 'http://localhost:5000/payment-cancel', // Remplacez par votre URL
+      success_url: 'https://es-trappes.com/Succes.html', // Remplacez par votre URL
+  cancel_url: 'https://es-trappes.com/Echec.html', // Remplacez par votre URL
       client_reference_id: registrationId,
     });
     
     // Stocker l'ID de session dans l'inscription
     registration.paymentSessionId = session.id;
-    registration.paymentStatus = 'pending';
+    registration.paymentStatus = 'attente';
     await registration.save();
     
     // Envoyer un email avec le lien de paiement
