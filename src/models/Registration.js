@@ -27,7 +27,9 @@ const RegistrationSchema = new mongoose.Schema({
     },
     droitImage: { type: String, enum: ['oui', 'non'] },
     codePromo: { type: String } ,
-    status: { type: String, enum: ['refusé', 'attente', 'accepté'], default: 'attente' }
+    status: { type: String, enum: ['refusé', 'attente', 'accepté'], default: 'attente' },
+    paymentStatus: { type: String, enum: ['pending', 'paid', 'failed'], default: 'pending' }
+
 }, { timestamps: true });
 
 module.exports = mongoose.model('Registration', RegistrationSchema);

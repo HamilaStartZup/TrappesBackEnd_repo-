@@ -114,7 +114,7 @@ exports.getRegistrations = async (req, res, next) => {
 
     // Récupérer les inscriptions filtrées
     const registrations = await Registration.find(filter).select(
-      "firstName lastName typeInscription status"
+      "firstName lastName typeInscription status paymentStatus"
     );
     res.status(200).json(registrations);
   } catch (error) {
