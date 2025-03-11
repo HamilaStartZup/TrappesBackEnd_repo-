@@ -1,25 +1,29 @@
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
+const Admin = require('../models/Admin');
+require('dotenv').config();
 
-// Exemple de données utilisateur (à remplacer par une base de données)
-const adminUser = {
-  username: 'admin',
-  password: bcrypt.hashSync('admin_password', 10), // Mot de passe haché
-  role: 'admin'
-};
+exports.login = async (req, res) => {
+  try {
+    const { username, password } = req.body;
 
-const SECRET_KEY = process.env.SECRET_KEY || 'votre_clé_secrète';
+    // Vérifier si l'admin existe
+    const admin = await Admin.findOne({ username });
+    if (!admin) return res.status(401).json({ message: 'Utilisateur introuvable' });
 
-exports.login = (req, res) => {
-  const { username, password } = req.body;
+    // Vérifier le mot de passe
+    const isMatch = await admin.comparePassword(password);
+    if (!isMatch) return res.status(401).json({ message: 'Mot de passe incorrect' });
 
-  if (username === adminUser.username && bcrypt.compareSync(password, adminUser.password)) {
-    const token = jwt.sign({ userId: adminUser.username, role: adminUser.role }, SECRET_KEY, {
-      expiresIn: '24h'
-    });
+    // Générer le token JWT
+    const token = jwt.sign(
+      { userId: admin._id, role: admin.role },
+      process.env.SECRET_KEY,
+      { expiresIn: '24h' }
+    );
 
-    return res.json({ token });
+    res.json({ token });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Erreur serveur' });
   }
-
-  return res.status(401).json({ message: 'Nom d\'utilisateur ou mot de passe incorrect.' });
 };
