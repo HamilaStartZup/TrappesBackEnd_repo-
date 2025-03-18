@@ -1,5 +1,6 @@
 const Member = require('../models/Member');
 const emailService = require('../utils/emailService');
+const mongoose = require('mongoose');
 
 // Créer un nouveau membre
 exports.createMember = async (req, res, next) => {
@@ -198,7 +199,12 @@ exports.updateMultipleMembers = async (req, res, next) => {
     const { memberIds, updateData } = req.body;
 
     // Validation des IDs des membres
-    if (!memberIds || !Array.isArray(memberIds) || memberIds.length === 0 || memberIds.some(id => !mongoose.Types.ObjectId.isValid(id))) {
+    if (
+      !memberIds ||
+      !Array.isArray(memberIds) ||
+      memberIds.length === 0 ||
+      memberIds.some(id => !mongoose.Types.ObjectId.isValid(id))
+    ) {
       return res.status(400).json({ message: 'Invalid or empty memberIds array' });
     }
 
@@ -222,8 +228,8 @@ exports.updateMultipleMembers = async (req, res, next) => {
       return res.status(404).json({ message: 'No members found with the provided IDs' });
     }
 
-    // Mise à jour individuelle de chaque membre
-    for (const member of members) {
+    // Préparer les opérations bulk
+    const bulkOperations = members.map(member => {
       // Clonage de filteredUpdateData pour éviter de modifier l'objet original
       const memberUpdateData = { ...filteredUpdateData };
 
@@ -231,25 +237,43 @@ exports.updateMultipleMembers = async (req, res, next) => {
         memberUpdateData.totalDue += member.totalDue;
       }
 
-      // Appliquer les données de mise à jour
-      Object.assign(member, memberUpdateData);
+      // Calcul du paymentStatus
+      let paymentStatus = 'unpaid';
+      let totalPaid = member.totalPaid;
+      let totalDue = memberUpdateData.totalDue || member.totalDue;
 
-      // Mise à jour de paymentStatus
-      if (member.totalPaid >= member.totalDue) {
-        const excess = member.totalPaid - member.totalDue;
-        member.totalPaid = excess;
-        member.totalDue = 0;
-        member.paymentStatus = 'paid';
-      } else if (member.totalPaid > 0) {
-        member.paymentStatus = 'partial';
-      } else {
-        member.paymentStatus = 'unpaid';
+      if (totalPaid >= totalDue) {
+        const excess = totalPaid - totalDue;
+        totalPaid = excess;
+        totalDue = 0;
+        paymentStatus = 'paid';
+      } else if (totalPaid > 0) {
+        paymentStatus = 'partial';
       }
 
-      await member.save();
-    }
+      // Construire l'opération de mise à jour
+      return {
+        updateOne: {
+          filter: { _id: member._id },
+          update: {
+            $set: {
+              ...memberUpdateData,
+              totalPaid,
+              totalDue,
+              paymentStatus,
+            },
+          },
+        },
+      };
+    });
 
-    res.json({ message: 'Members updated successfully', modifiedCount: members.length });
+    // Exécuter les opérations bulk
+    const result = await Member.bulkWrite(bulkOperations);
+
+    res.json({
+      message: 'Members updated successfully',
+      modifiedCount: result.modifiedCount,
+    });
   } catch (error) {
     next(error); // Passer l'erreur au middleware de gestion des erreurs
   }
